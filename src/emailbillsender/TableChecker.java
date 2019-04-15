@@ -16,9 +16,9 @@ public class TableChecker {
   private dbHandler dbh;
 
   public TableChecker() {
-    dbh = new dbHandler("staging");
-    dbh.setDBConnInfo(ConfigHandler.get("infranet.Stg.DBtns"));
-    dbh.setUserPass(ConfigHandler.get("infranet.Stg.DBuser"), ConfigHandler.get("infranet.Stg.DBpassword"));
+    dbh = new dbHandler("BIPDB");
+    dbh.setDBConnInfo(ConfigHandler.get("infranet.BIP.DBtns"));
+    dbh.setUserPass(ConfigHandler.get("infranet.BIP.DBuser"), ConfigHandler.get("infranet.BIP.DBpassword"));
   }
 
   public void connect() throws SQLException {

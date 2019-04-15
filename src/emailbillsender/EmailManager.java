@@ -112,9 +112,9 @@ public class EmailManager implements Runnable {
   }
 
   private void init() throws SQLException {
-    dbstg = new dbHandler("m staging");
-    dbstg.setDBConnInfo(ConfigHandler.get("infranet.Stg.DBtns"));
-    dbstg.setUserPass(ConfigHandler.get("infranet.Stg.DBuser"), ConfigHandler.get("infranet.Stg.DBpassword"));
+    dbstg = new dbHandler("m bipdb");
+    dbstg.setDBConnInfo(ConfigHandler.get("infranet.BIP.DBtns"));
+    dbstg.setUserPass(ConfigHandler.get("infranet.BIP.DBuser"), ConfigHandler.get("infranet.BIP.DBpassword"));
     dbstg.openConnection();
 
     es.connectDB();

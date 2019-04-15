@@ -38,8 +38,8 @@ public class EmailSlave implements Runnable {
     pdfDir = ConfigHandler.get("PDFLocation");
     
     dbStg = new dbHandler("s bipdb");
-    dbStg.setDBConnInfo(ConfigHandler.get("infranet.Stg.DBtns"));
-    dbStg.setUserPass(ConfigHandler.get("infranet.Stg.DBuser"), ConfigHandler.get("infranet.Stg.DBpassword"));
+    dbStg.setDBConnInfo(ConfigHandler.get("infranet.BIP.DBtns"));
+    dbStg.setUserPass(ConfigHandler.get("infranet.BIP.DBuser"), ConfigHandler.get("infranet.BIP.DBpassword"));
     
     dbApps = new dbHandler("s apps");
     dbApps.setDBConnInfo(ConfigHandler.get("infranet.Apps.DBtns"));
