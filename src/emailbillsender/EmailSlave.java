@@ -187,7 +187,7 @@ public class EmailSlave implements Runnable {
           if (pdffile.isFile()) {
             // 3 + 4. send the email
             try {
-//              sendEmail(es, pdffile, ACCOUNT_NO, Utilities.dateFormat(BILL_DATE, ""), ACCOUNT_NO, pdfname, TOEMAIL);
+              sendEmail(es, pdffile, ACCOUNT_NO, Utilities.dateFormat(BILL_DATE, "d MMMMM yyyy"), ACCOUNT_NO, pdfname, TOEMAIL);
               
               // 5. update the statuses
               updateOtherStatuses(tid, billno, psInsertSentMail, psUpdateBillExtended, ACCOUNT_NO, TOEMAIL, CCEMAIL);
