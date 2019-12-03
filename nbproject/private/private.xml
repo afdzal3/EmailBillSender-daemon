@@ -4,10 +4,10 @@
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group name="Work In Progress">
             <file>file:/home/amer/work/programming/java/EmailBillSender/src/emailbillsender/Main.java</file>
+            <file>file:/home/amer/work/programming/java/EmailBillSender/src/emailbillsender/Utilities.java</file>
+            <file>file:/home/amer/work/programming/java/EmailBillSender/src/emailbillsender/EmailSender.java</file>
             <file>file:/home/amer/work/programming/java/EmailBillSender/src/emailbillsender/EmailSlave.java</file>
-            <file>file:/home/amer/work/programming/java/EmailBillSender/src/emailbillsender/EmailManager.java</file>
             <file>file:/home/amer/work/programming/java/EmailBillSender/src/emailbillsender/TableChecker.java</file>
-            <file>file:/home/amer/work/programming/java/EmailBillSender/src/emailbillsender/constant.java</file>
         </group>
     </open-files>
 </project-private>

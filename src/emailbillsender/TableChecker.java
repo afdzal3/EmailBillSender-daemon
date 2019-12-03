@@ -5,6 +5,7 @@
  */
 package emailbillsender;
 
+import java.sql.ResultSet;
 import java.sql.SQLException;
 
 /**
@@ -68,7 +69,7 @@ public class TableChecker {
 
     return true;
   }
-  
+
   public boolean checkDetailTable() {
     // check if the required table exists
     try {
@@ -100,7 +101,7 @@ public class TableChecker {
 
     return true;
   }
-  
+
   public boolean checkProcessTable() {
     // check if the required table exists
     try {
@@ -131,7 +132,7 @@ public class TableChecker {
 
     return true;
   }
-  
+
   public boolean checkFailedTable() {
     // check if the required table exists
     try {
@@ -163,8 +164,35 @@ public class TableChecker {
 
     return true;
   }
-  
-  public void cleanup(){
+
+  public boolean checkSeq() {
+
+    try {
+      ResultSet rs = dbh.executeSelect("select * from ALL_SEQUENCES\n"
+              + "where SEQUENCE_NAME = 'EBILL_V2_JOBID_SEQ'");
+
+      if (rs.next()) {
+        return true;
+      } else {
+        // try to create it
+        try {
+          dbh.executeUpdate("CREATE SEQUENCE EBILL_V2_JOBID_SEQ INCREMENT BY 1 START WITH 1");
+        } catch (SQLException sqle) {
+          System.err.println("Error creating the sequence");
+          sqle.printStackTrace();
+          return false;
+        }
+      }
+    } catch (SQLException e) {
+      System.err.println("Error checking for the sequence");
+      e.printStackTrace();
+      return false;
+    }
+
+    return true;
+  }
+
+  public void cleanup() {
     try {
       dbh.closeConnection();
     } catch (Exception e) {

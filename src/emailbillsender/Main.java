@@ -38,10 +38,7 @@ public class Main {
     
     int delay = ConfigHandler.getInt("JobIdleInterval");
     
-//    envCheck();
-    
     ScheduledExecutorService theSlavePool = Executors.newSingleThreadScheduledExecutor();
-//    lockCheck();
     
     theSlavePool.scheduleWithFixedDelay(new EmailManager(), 0, delay, TimeUnit.MINUTES);
     theSlavePool.scheduleWithFixedDelay(new LockChecker(theSlavePool), 0, 10, TimeUnit.SECONDS);
@@ -58,7 +55,6 @@ public class Main {
 //    create the locl file
     try {
       lf.createNewFile();
-//      lf.deleteOnExit();
     } catch (IOException e) {
       System.out.println("unable to create lock file");
       System.exit(1);
@@ -83,9 +79,10 @@ public class Main {
     int errcount = 0;
     
     errcount += tc.checkQueueTable() ? 0 : 1;
-    errcount += tc.checkFailedTable()? 0 : 1;
-    errcount += tc.checkDetailTable()? 0 : 1;
-    errcount += tc.checkProcessTable()? 0 : 1;
+    errcount += tc.checkFailedTable() ? 0 : 1;
+    errcount += tc.checkDetailTable() ? 0 : 1;
+    errcount += tc.checkProcessTable() ? 0 : 1;
+    errcount += tc.checkSeq() ? 0 : 1;
     
     tc.cleanup();
     

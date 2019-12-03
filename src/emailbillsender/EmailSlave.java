@@ -31,20 +31,24 @@ public class EmailSlave implements Runnable {
   private volatile int index;
   private Iterator it;
   private String pdfDir;
+  private String curSys;
+  private String sendermail;
 
   public EmailSlave() {
     index = 0;
     billnolist = new ArrayList<String>();
     pdfDir = ConfigHandler.get("PDFLocation");
-    
+    curSys = ConfigHandler.get("CurSys");
+    sendermail = ConfigHandler.get("SenderEmail");
+
     dbStg = new dbHandler("s bipdb");
     dbStg.setDBConnInfo(ConfigHandler.get("infranet.BIP.DBtns"));
     dbStg.setUserPass(ConfigHandler.get("infranet.BIP.DBuser"), ConfigHandler.get("infranet.BIP.DBpassword"));
-    
+
     dbApps = new dbHandler("s apps");
     dbApps.setDBConnInfo(ConfigHandler.get("infranet.Apps.DBtns"));
     dbApps.setUserPass(ConfigHandler.get("infranet.Apps.DBuser"), ConfigHandler.get("infranet.Apps.DBpassword"));
-    
+
   }
 
   /**
@@ -64,13 +68,13 @@ public class EmailSlave implements Runnable {
   public int getLoadSize() {
     return billnolist.size();
   }
-  
-  public void connectDB() throws SQLException{
+
+  public void connectDB() throws SQLException {
     dbStg.openConnection();
     dbApps.openConnection();
   }
 
-  public void init(int jobid)  {
+  public void init(int jobid) {
     errcount = 0;
     it = billnolist.iterator();
     this.jobid = jobid;
@@ -108,7 +112,7 @@ public class EmailSlave implements Runnable {
       critError();
       return;
     }
-    EmailSender es = new EmailSender("smtp.tm.com.my", false);
+    EmailSender es = new EmailSender("smtp.tm.com.my", false, curSys, sendermail);
     try {
       es.init();
     } catch (Exception e) {
@@ -126,6 +130,7 @@ public class EmailSlave implements Runnable {
     PreparedStatement psInsertSentMail;
     PreparedStatement psInsertDetailError;
     PreparedStatement psDeleteRef;
+    PreparedStatement psIsBillSent;
 
     try {
       psGetBillInfo = dbStg.createPS("select * from tm_ebill_reference where bill_no = ? ");
@@ -133,12 +138,13 @@ public class EmailSlave implements Runnable {
       psUpdateEbillDetail = dbStg.createPS("update TM_EBILL_DETAIL set status = ? where bill_no = ? and job_id = " + jobid);
       psPickupEbillDetail = dbStg.createPS("update TM_EBILL_DETAIL set status = 'P', process_time = sysdate where bill_no = ? and job_id = " + jobid);
 
-      psUpdateBillExtended = dbApps.createPS("update bill_extended_t set email_sent = 1 where bill_no = ? and bill_media = 0 ");
+      psUpdateBillExtended = dbApps.createPS("update bill_extended_t set actual_email_sent = 1 where bill_no = ? and bill_media = 0 ");
+      psIsBillSent = dbApps.createPS("select 1 from  bill_extended_t where actual_email_sent = 1 and bill_no = ? ");
 
       psInsertSentMail = dbApps.createPS("insert into TM_BILL_SENT_MAIL (bill_no, account_no, to_email, cc_email, bip_status) values (?, ?, ?, ?, 'success')");
 
       psInsertDetailError = dbStg.createPS("insert into TM_EBILL_FAILED (job_id, bill_no, reason, status) values (" + jobid + ", ?, ?, 'F')");
-      
+
       psDeleteRef = dbStg.createPS("delete from tm_ebill_reference where bill_no = ? ");
 
     } catch (Exception e) {
@@ -153,57 +159,66 @@ public class EmailSlave implements Runnable {
     while (!billno.equals("-1")) {
 
 //      log(tid, billno, 0);
-
-      // 1. get the bill info
       try {
         pickupDetail(billno, psPickupEbillDetail);
-        
-        psGetBillInfo.setString(1, billno);
-        ResultSet rs = psGetBillInfo.executeQuery();
-        if (rs.next()) {
 
-          String ACCOUNT_NO = dbHandler.dbGetString(rs, "ACCOUNT_NO");
-//          String BILL_NO = dbHandler.dbGetString(rs, "BILL_NO");
-          String BILL_TYPE = dbHandler.dbGetString(rs, "BILL_TYPE");
-          String BILL_PERIOD = dbHandler.dbGetString(rs, "BILL_PERIOD");
-          String BILL_STREAM = dbHandler.dbGetString(rs, "BILL_STREAM");
-          String TOEMAIL = dbHandler.dbGetString(rs, "TOEMAIL");
-          String CCEMAIL = dbHandler.dbGetString(rs, "CCEMAIL");
-          Date BILL_DATE = rs.getDate("BILL_DATE");
-          Date BILL_DUE_DATE = rs.getDate("BILL_DUE_DATE");
-          double TOTAL_OUTSTANDING = rs.getDouble("TOTAL_OUTSTANDING");
-          String CURRENCY = dbHandler.dbGetString(rs, "CURRENCY");
-          String BILL_SEG = dbHandler.dbGetString(rs, "BILL_SEG");
-          double CMC = rs.getDouble("CMC");
-          double PREVIOUS_OST = rs.getDouble("PREVIOUS_OST");
-          // todo: get outstanding and cmc
-
-          // 2. find the pdf
-          String pdfname = "HSBB_BP" + BILL_PERIOD + "_" + BILL_STREAM
-                  + "_" + Utilities.dateFormat(BILL_DATE, "yyyyMMdd") + "_" + billno
-                  + "_" + (BILL_TYPE.equals("0") ? "CP" : "IM") + ".pdf";
-          File pdffile = new File(indir, pdfname);
-
-          if (pdffile.isFile()) {
-            // 3 + 4. send the email
-            try {
-              sendEmail(es, pdffile, ACCOUNT_NO, Utilities.dateFormat(BILL_DATE, "d MMMMM yyyy"), ACCOUNT_NO, pdfname, TOEMAIL);
-              
-              // 5. update the statuses
-              updateOtherStatuses(tid, billno, psInsertSentMail, psUpdateBillExtended, ACCOUNT_NO, TOEMAIL, CCEMAIL);
-              
-              // then clean it
-              clean(billno, psDeleteRef, indir);
-            } catch (Exception e) {
-              updateDetailStatus(tid, billno, psUpdateEbillDetail, "E", psInsertDetailError, "error send: " + e.getMessage());
-            }
-          } else {
-            // pdf file not found
-            updateDetailStatus(tid, billno, psUpdateEbillDetail, "E", psInsertDetailError, "pdf not found: " + pdfname);
-          }
-
+        // 0. check dah hantar ke belum
+        psIsBillSent.setString(1, billno);
+        ResultSet rsissent = psIsBillSent.executeQuery();
+        if (rsissent.next()) {
+          updateDetailStatus(tid, billno, psUpdateEbillDetail, "E", psInsertDetailError, "ebill already sent -> bill_extended_t.actual_email_sent");
         } else {
-          updateDetailStatus(tid, billno, psUpdateEbillDetail, "E", psInsertDetailError, "no info in tm_ebill_reference");
+
+          // 1. get the bill info
+          psGetBillInfo.setString(1, billno);
+          ResultSet rs = psGetBillInfo.executeQuery();
+          if (rs.next()) {
+
+            String ACCOUNT_NO = dbHandler.dbGetString(rs, "ACCOUNT_NO");
+//          String BILL_NO = dbHandler.dbGetString(rs, "BILL_NO");
+            String BILL_TYPE = dbHandler.dbGetString(rs, "BILL_TYPE");
+            String BILL_PERIOD = dbHandler.dbGetString(rs, "BILL_PERIOD");
+            String BILL_STREAM = dbHandler.dbGetString(rs, "BILL_STREAM");
+            String TOEMAIL = dbHandler.dbGetString(rs, "TOEMAIL");
+            String CCEMAIL = dbHandler.dbGetString(rs, "CCEMAIL");
+            Date BILL_DATE = rs.getDate("BILL_DATE");
+            Date BILL_DUE_DATE = rs.getDate("BILL_DUE_DATE");
+            double TOTAL_OUTSTANDING = rs.getDouble("TOTAL_OUTSTANDING");
+            String CURRENCY = dbHandler.dbGetString(rs, "CURRENCY");
+            String BILL_SEG = dbHandler.dbGetString(rs, "BILL_SEG");
+            double CMC = rs.getDouble("CMC");
+            double PREVIOUS_OST = rs.getDouble("PREVIOUS_OST");
+            String BILL_LANG = dbHandler.dbGetString(rs, "BILL_LANG");
+            String ACC_NAME = dbHandler.dbGetString(rs, "NAME");
+            
+
+            // 2. find the pdf
+            String pdfname = "HSBB_BP" + BILL_PERIOD + "_" + BILL_STREAM
+                    + "_" + Utilities.dateFormat(BILL_DATE, "yyyyMMdd") + "_" + billno
+                    + "_" + (BILL_TYPE.equals("0") ? "CP" : "IM") + ".pdf";
+            File pdffile = new File(indir, pdfname);
+
+            if (pdffile.isFile()) {
+              // 3 + 4. send the email
+              try {
+                sendEmail(es, pdffile, ACCOUNT_NO, BILL_DATE, TOTAL_OUTSTANDING, ACC_NAME, TOEMAIL, CCEMAIL, BILL_LANG, CURRENCY, BILL_SEG, PREVIOUS_OST, CMC, BILL_DUE_DATE);
+
+                // 5. update the statuses
+                updateOtherStatuses(tid, billno, psInsertSentMail, psUpdateBillExtended, ACCOUNT_NO, TOEMAIL, CCEMAIL);
+
+                // then clean it
+                clean(billno, psDeleteRef, indir);
+              } catch (Exception e) {
+                updateDetailStatus(tid, billno, psUpdateEbillDetail, "E", psInsertDetailError, "error send: " + e.getMessage());
+              }
+            } else {
+              // pdf file not found
+              updateDetailStatus(tid, billno, psUpdateEbillDetail, "E", psInsertDetailError, "pdf not found: " + pdfname);
+            }
+
+          } else {
+            updateDetailStatus(tid, billno, psUpdateEbillDetail, "E", psInsertDetailError, "no info in tm_ebill_reference");
+          }
         }
 
       } catch (Exception e) {
@@ -230,30 +245,28 @@ public class EmailSlave implements Runnable {
   private synchronized void critError() {
     errcount++;
   }
-  
-  private void clean(String billno, PreparedStatement psDeleteRef, File indir){
-    
+
+  private void clean(String billno, PreparedStatement psDeleteRef, File indir) {
+
     try {
       // first, remove from reference table
       psDeleteRef.setString(1, billno);
       psDeleteRef.executeUpdate();
-      
+
       // then, remove the pdf file
       BillPdfFilter pbf = new BillPdfFilter(billno);
-      
+
       File[] flist = indir.listFiles(pbf);
-      for(File f : flist){
+      for (File f : flist) {
         f.delete();
       }
-      
+
     } catch (Exception e) {
     }
-    
-    
+
   }
 
-  
-  private void pickupDetail(String billno, PreparedStatement psPickupEbillDetail) throws SQLException{
+  private void pickupDetail(String billno, PreparedStatement psPickupEbillDetail) throws SQLException {
     psPickupEbillDetail.setString(1, billno);
     psPickupEbillDetail.executeUpdate();
   }
@@ -265,7 +278,7 @@ public class EmailSlave implements Runnable {
    * @param billno
    */
   private void updateDetailStatus(long tid, String billno, PreparedStatement psUpdateEbillDetail, String status,
-           PreparedStatement psInsertDetailError, String reason) {
+          PreparedStatement psInsertDetailError, String reason) {
     try {
       psUpdateEbillDetail.setString(1, status);
       psUpdateEbillDetail.setString(2, billno);
@@ -284,18 +297,19 @@ public class EmailSlave implements Runnable {
       Utilities.logStack(e);
     }
   }
-  
-  
 
-  private void sendEmail(EmailSender es, File inf, String bano, String enddate, String amount, String name, String emailaddr) throws MessagingException {
+  private void sendEmail(EmailSender es, File inf, String bano, Date enddate
+          , double amount, String name, String emailaddr, String ccaddr
+          , String lang, String lob, String currency, double outstanding, double cmc, Date duedate
+  ) throws MessagingException {
 
-      es.send(name, bano, enddate, amount, inf, emailaddr, "");
+    es.send(name, bano, enddate, amount, inf, emailaddr, ccaddr, lob, lang, currency, outstanding, cmc, duedate);
 
   }
-  
-  private void updateOtherStatuses(long tid, String billno, PreparedStatement psInsertSentMail, PreparedStatement psUpdateBillExtended
-          , String account_no, String to_email, String cc_email
-  ){
+
+  private void updateOtherStatuses(long tid, String billno, PreparedStatement psInsertSentMail, PreparedStatement psUpdateBillExtended,
+           String account_no, String to_email, String cc_email
+  ) {
     // first, insert into tm_bill_sent_mail
     // insert into TM_BILL_SENT_MAIL (bill_no, account_no, to_email, cc_email, bip_status) values (?, ?, ?, ?, 'success')
     try {
@@ -303,14 +317,14 @@ public class EmailSlave implements Runnable {
       psInsertSentMail.setString(2, account_no);
       psInsertSentMail.setString(3, to_email);
       psInsertSentMail.setString(4, cc_email);
-      
+
       psInsertSentMail.executeUpdate();
-      
+
     } catch (SQLException e) {
       log(tid, "error inserting to TM_BILL_SENT_MAIL: j#" + jobid + " b#" + billno + " - " + e.getMessage(), 1);
       Utilities.logStack(e);
     }
-    
+
     // then update bill_extended_T
     try {
       psUpdateBillExtended.setString(1, billno);
@@ -319,28 +333,26 @@ public class EmailSlave implements Runnable {
       log(tid, "error updating bill_extended_t: j#" + jobid + " b#" + billno + " - " + e.getMessage(), 1);
       Utilities.logStack(e);
     }
-    
-    
+
   }
 
   private void log(long tid, String line, int mode) {
     Utilities.log("T#" + tid + ": " + line, mode);
   }
-  
-  class BillPdfFilter implements FilenameFilter{
+
+  class BillPdfFilter implements FilenameFilter {
 
     private final String bill_no;
-    
-    public BillPdfFilter(String billno){
+
+    public BillPdfFilter(String billno) {
       bill_no = billno;
     }
-    
+
     @Override
     public boolean accept(File dir, String name) {
       return (name.contains(bill_no) && name.toLowerCase().endsWith("pdf"));
     }
-    
-    
+
   }
 
 }

@@ -43,7 +43,7 @@ public class Utilities {
         return sdf.format(d);
     }
     
-    public static String dateFormat(java.sql.Date d, String date_format) {
+    public static String dateFormat(Date d, String date_format) {
         SimpleDateFormat sdf = new SimpleDateFormat(date_format);
 
         return sdf.format(d);
