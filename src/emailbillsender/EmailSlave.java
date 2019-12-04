@@ -175,7 +175,7 @@ public class EmailSlave implements Runnable {
           if (rs.next()) {
 
             String ACCOUNT_NO = dbHandler.dbGetString(rs, "ACCOUNT_NO");
-//          String BILL_NO = dbHandler.dbGetString(rs, "BILL_NO");
+//            String BILL_NO = dbHandler.dbGetString(rs, "BILL_NO");
             String BILL_TYPE = dbHandler.dbGetString(rs, "BILL_TYPE");
             String BILL_PERIOD = dbHandler.dbGetString(rs, "BILL_PERIOD");
             String BILL_STREAM = dbHandler.dbGetString(rs, "BILL_STREAM");
@@ -193,9 +193,7 @@ public class EmailSlave implements Runnable {
             
 
             // 2. find the pdf
-            String pdfname = "HSBB_BP" + BILL_PERIOD + "_" + BILL_STREAM
-                    + "_" + Utilities.dateFormat(BILL_DATE, "yyyyMMdd") + "_" + billno
-                    + "_" + (BILL_TYPE.equals("0") ? "CP" : "IM") + ".pdf";
+            String pdfname = ACCOUNT_NO + "_" + Utilities.dateFormat(BILL_DATE, "yyyyMMdd") + "_" + billno + ".pdf";
             File pdffile = new File(indir, pdfname);
 
             if (pdffile.isFile()) {
